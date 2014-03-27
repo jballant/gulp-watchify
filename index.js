@@ -61,7 +61,7 @@ AbstractBundleStream.prototype._createBundleFile = function (srcFile, source) {
         cwd: srcFile.cwd,
         path: srcFile.path
     });
-}
+};
 
 /**
  * @type GulpWatchify.ReBundle
@@ -72,7 +72,7 @@ AbstractBundleStream.prototype._createBundleFile = function (srcFile, source) {
  * @param bundler
  * @constructor
  */
-function ReBundle (bundlerInstance, options) {
+function ReBundle(bundlerInstance, options) {
     AbstractBundleStream.call(this, options);
     this._bundlerInstance = bundlerInstance;
 
@@ -240,8 +240,8 @@ GulpWatchify.prototype._transform = function (srcFile, encoding, done) {
 
     bundler.on('update', function () {
         self.emit('update', srcFile, bundler);
-        self._handleUpdate(srcFile, bundler)
-    })
+        self._handleUpdate(srcFile, bundler);
+    });
 
     this._bundlers[srcFile.path] = bundler;
 
@@ -288,7 +288,7 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
     var self = this,
         rebundle = self._rebundleStream;
 
-    clearTimeout(self._rebundleTimeout)
+    clearTimeout(self._rebundleTimeout);
 
     if (!rebundle) {
         gutil.log('_rebundleStream definition');
@@ -306,7 +306,7 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
         rebundle.push(null);
         self._rebundleStream = null;
     }, self._rebundleDelay || 400);
-}
+};
 
 /**
  * Remove references to buffered files.
