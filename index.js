@@ -290,7 +290,6 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
 
     clearTimeout(self._rebundleTimeout)
 
-    console.log("SKIP UPDATE ERROR", self._skipUpdateError);
     if (!rebundle) {
         gutil.log('_rebundleStream definition');
         rebundle = self._rebundleStream = new ReBundle(bundler, {
