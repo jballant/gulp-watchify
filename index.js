@@ -12,6 +12,7 @@ var
     watchify = require('watchify'),
     browserify = require('browserify'),
     copy = require('shallow-copy'),
+    gcolors = gutil.colors,
     PluginError = gutil.PluginError;
 
 /**
@@ -41,29 +42,10 @@ function AbstractBundleStream(options) {
 
     this.verbose = (typeof options.verbose === 'boolean') ? options.verbose : true;
 
-    this._skipError = (typeof options.skipError === 'boolean') ? options.skipError : true;
+    this._skipUpdateError = (typeof options.skipUpdateError === 'boolean') ? options.skipUpdateError : true;
 }
 
 util.inherits(AbstractBundleStream, Transform);
-
-/**
- * Common error handler for bundle transform functions.
- * Returns true if callback should proceed
- * @param {Error} err
- * @param {function} done
- * @private
- */
-AbstractBundleStream.prototype._handleError = function (err, done) {
-    if (!this._skipError) {
-        done(new PluginError('gulp-watchify', err));
-        return;
-    }
-    if (this.verbose) {
-        gutil.log(makeTimeString() + 'Encountered Error, failed to create bundle');
-        gutil.log(err);
-    }
-    done();
-};
 
 /**
  * Create a new gutil.File to represent the bundle
@@ -95,10 +77,10 @@ function ReBundle (bundlerInstance, options) {
     this._bundlerInstance = bundlerInstance;
 
     this.on('end', function () {
-        gutil.log('=======================');
-        gutil.log(makeTimeString() + ' Successfully updated bundles for with changed dependencies');
-        gutil.log("---------------");
-        gutil.log("Watching...");
+        gutil.log(gcolors.green('======================='));
+        gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('Successfully updated bundles for with changed dependencies'));
+        gutil.log(gcolors.white("---------------"));
+        gutil.log(gcolors.white("Watching..."));
     });
 }
 
@@ -108,7 +90,14 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
     var self = this;
 
     this._bundlerInstance.bundle(function (err, source) {
-        if (err && !self._handleError(err, done)) {
+        if (err) {
+            if (!self._skipUpdateError) {
+                done(new PluginError('gulp-watchify', err));
+                return;
+            }
+            gutil.log(gcolors.cyan(makeTimeString()), gcolors.red('Encountered Error, failed to create bundle for "'), gcolors.magenta(srcFile.path), '"');
+            gutil.log(err);
+            done();
             return;
         }
 
@@ -116,13 +105,11 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
 
         self.push(file);
         if (self.verbose) {
-            gutil.log(makeTimeString() + ' -> Successfully Re-Bundled changed file', srcFile.path);
+            gutil.log(gcolors.cyan(makeTimeString()), '-> Successfully Re-Bundled changed file', srcFile.path);
         }
         done();
     });
-    if (this.verbose) {
-        gutil.log(makeTimeString() + '* Updating bundle for entry file :', srcFile.path);
-    }
+    gutil.log(gcolors.cyan(makeTimeString()), '* Updating bundle for entry file :', srcFile.path);
 };
 
 function GulpWatchify(options) {
@@ -161,7 +148,7 @@ function GulpWatchify(options) {
      * If you want to show a warning instead of throwing an error
      * @type {boolean}
      */
-    this._rebundle = (typeof options.skipError === 'boolean') ? options.rebundle : true;
+    this._rebundle = (typeof options.rebundle === 'boolean') ? options.rebundle : true;
 
     /**
      * The bundler function to use to create common js bundles
@@ -207,11 +194,11 @@ function GulpWatchify(options) {
 
     this.on('end', function () {
         if (this.verbose) {
-            gutil.log("=============================");
-            gutil.log("Successfully Wrote JS Bundles");
+            gutil.log(gcolors.green("============================="));
+            gutil.log(gcolors.green("Successfully Wrote JS Bundles"));
             if (this.watch) {
-                gutil.log("---------------");
-                gutil.log("Watching...");
+                gutil.log(gcolors.white("---------------"));
+                gutil.log(gcolors.white("Watching..."));
             }
         }
     });
@@ -264,14 +251,15 @@ GulpWatchify.prototype._transform = function (srcFile, encoding, done) {
 
     function firstBundleCallback(err, source) {
         if (err) {
-            return self._handleError(err, done)
+            done(new PluginError('gulp-watchify', err));
+            return;
         }
 
         var file = self._createBundleFile(srcFile, source);
 
         self.push(file);
         if (self.verbose) {
-            gutil.log(makeTimeString(), ' -> Successfully bundled file', srcFile.path);
+            gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('-> Successfully bundled file"'), gcolors.magenta(srcFile.path), gcolors.green('"'));
         }
         done();
     }
@@ -279,7 +267,7 @@ GulpWatchify.prototype._transform = function (srcFile, encoding, done) {
     bundler.bundle(firstBundleCallback);
 
     if (this.verbose) {
-        gutil.log(makeTimeString(), '*Bundling file ' + srcFile.path + '...');
+        gutil.log(gcolors.cyan(makeTimeString()), '*Bundling file "', gcolors.magenta(srcFile.path), '"...');
     }
 
 };
@@ -302,9 +290,13 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
 
     clearTimeout(self._rebundleTimeout)
 
+    console.log("SKIP UPDATE ERROR", self._skipUpdateError);
     if (!rebundle) {
         gutil.log('_rebundleStream definition');
-        rebundle = self._rebundleStream = new ReBundle(bundler, { verbose: self.verbose, skipError: self.skipError });
+        rebundle = self._rebundleStream = new ReBundle(bundler, {
+            verbose: self.verbose,
+            skipUpdateError: self._skipUpdateError
+        });
         self.emit('rebundle', rebundle);
     }
 
@@ -314,7 +306,7 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
     self._rebundleTimeout = setTimeout(function () {
         rebundle.push(null);
         self._rebundleStream = null;
-    }, self._rebundleDelay || 800);
+    }, self._rebundleDelay || 400);
 }
 
 /**
