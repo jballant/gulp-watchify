@@ -1,0 +1,34 @@
+{
+  "name": "gulp-watchify",
+  "version": "0.0.0",
+  "description": "Gulp plugin that uses watchify to efficiently re-bundle changed CommonJS dependencies",
+  "main": "index.js",
+  "dependencies": {
+    "gulp-util": "~2.2.10",
+    "shallow-copy": "0.0.1",
+    "graceful-fs":">==2.0.0",
+    "browserify": ">=3.21.1 <4.0.0",
+    "watchify": "git+ssh://git@github.com:jballant/watchify.git"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://git@github.com/jballant/gulp-watchify.git"
+  },
+  "homepage": "https://github.com/jballant/gulp-watchify",
+  "keywords": [
+    "gulp",
+    "gulpplugin",
+    "browserify",
+    "browserify-tool",
+    "watch",
+    "bundle",
+    "build",
+    "commonjs"
+  ],
+  "author": {
+    "name": "James Ballantine",
+    "email": "james@1stdibs.com",
+    "url": "http://www.1stdibs.com"
+  },
+  "license": "MIT"
+}
