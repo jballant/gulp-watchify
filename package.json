@@ -7,7 +7,7 @@
     "gulp-util": "~2.2.10",
     "shallow-copy": "0.0.1",
     "graceful-fs":">==2.0.0",
-    "browserify": ">=3.21.1 <4.0.0",
+    "browserify": "3.33.1",
     "watchify": "git+ssh://git@github.com:jballant/watchify.git"
   },
   "repository": {
