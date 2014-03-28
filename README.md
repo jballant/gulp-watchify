@@ -10,7 +10,7 @@ Additionally, can be used to persist the process, watch dependencies and automat
 Example:
 --------
 
-```
+```javascript
 var gulpWatchify = require('gulp-watchify');
 
 gulp.task('javascript-watch', function () {
