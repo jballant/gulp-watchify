@@ -32,6 +32,8 @@ function makeTimeString() {
 
 
 /**
+ * Abstract pseudoclass for watchify/browserify
+ * bundle streams.
  * @type AbstractBundleStream
  * @extends Stream.Transform
  * @param options
@@ -78,12 +80,13 @@ function ReBundle(bundlerInstance, options) {
 
     this.on('end', function () {
         gutil.log(gcolors.green('======================='));
-        gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('Successfully updated bundles for with changed dependencies'));
+        gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('Successfully updated bundles with changed dependencies'));
         gutil.log(gcolors.white("---------------"));
         gutil.log(gcolors.white("Watching..."));
     });
 }
 
+// ReBundle inherits from AbstractBundleStream's prototype
 util.inherits(ReBundle, AbstractBundleStream);
 
 ReBundle.prototype._transform = function (srcFile, encoding, done) {
@@ -91,10 +94,14 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
 
     this._bundlerInstance.bundle(function (err, source) {
         if (err) {
+            // watch errors don't have to be fatal, but if 
+            // the skipUpdateError option is false, they
+            // will be
             if (!self._skipUpdateError) {
                 done(new PluginError('gulp-watchify', err));
                 return;
             }
+            // If skipUpdateError is true log error but proceed
             gutil.log(gcolors.cyan(makeTimeString()), gcolors.red('Encountered Error, failed to create bundle for "'), gcolors.magenta(srcFile.path), '"');
             gutil.log(err);
             done();
@@ -112,6 +119,12 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
     gutil.log(gcolors.cyan(makeTimeString()), '* Updating bundle for entry file :', srcFile.path);
 };
 
+/**
+ * @constructor
+ * @type {GulpWatchify}
+ * @extends {AbstractBundleStream}
+ * @param {object} options [description]
+ */
 function GulpWatchify(options) {
     options = options || {};
 
@@ -120,7 +133,7 @@ function GulpWatchify(options) {
     /**
      * If watching should be turned on or not. If false, watchify is switched
      * out for browserify.
-     * @type {options.watch|*}
+     * @type {boolean}
      */
     this.watch = (typeof options.watch === 'boolean') ? options.watch : true;
 
@@ -140,19 +153,20 @@ function GulpWatchify(options) {
 
     /**
      * Options to pass to the bundler when it is created
-     * @type {[type]}
+     * @type {object}
      */
     this.bundlerOptions = options.bundlerOptions || {};
 
     /**
-     * If you want to show a warning instead of throwing an error
+     * If you want this GulpWatchify instance to automatically create a ReBundle stream
+     * when an update occurs. The GulpWatchify instance emits a 'rebundle' event and
+     * passes the ReBundle stream
      * @type {boolean}
      */
     this._rebundle = (typeof options.rebundle === 'boolean') ? options.rebundle : true;
 
     /**
      * The bundler function to use to create common js bundles
-     * @memberOf GulpWatchify#
      * @type {object}
      */
     this._bundler = options.Bundler;
@@ -291,7 +305,6 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
     clearTimeout(self._rebundleTimeout);
 
     if (!rebundle) {
-        gutil.log('_rebundleStream definition');
         rebundle = self._rebundleStream = new ReBundle(bundler, {
             verbose: self.verbose,
             skipUpdateError: self._skipUpdateError
