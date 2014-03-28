@@ -3,7 +3,7 @@ gulp-watchify
 
 Gulp plugin that uses [watchify](https://github.com/substack/watchify) to efficiently re-bundle changed CommonJS dependencies.
 
-Creates a transform stream that takes entry files (from something like gulp.src) and passes through a bundled file (vynil.File instances).
+Creates a transform stream that takes entry files (from something like gulp.src) and passes through a bundled file ([vinyl](https://github.com/wearefractal/vinyl).File instances).
 
 Additionally, can be used to persist the process, watch dependencies and automatically rebundle them, emitting another file stream with the 'rebundle' event. If ```options.watch``` is false, gulp-watchify just uses [browserify](https://github.com/substack/node-browserify) instead.
 
@@ -38,7 +38,7 @@ gulp.task('javascript-watch', function () {
         // bundles as vinyl.File instances
         .pipe(bundlerStream)
 
-        // Sent the output files to a gulp.dest stream
+        // Send the output files to a gulp.dest stream
         .pipe(gulp.dest(jsDest)); // send it to your desired output folder
 });
 ```
