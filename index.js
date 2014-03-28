@@ -2,9 +2,7 @@
 "use strict";
 
 var
-    Duplex = require('stream').Duplex,
     Transform = require('stream').Transform,
-    Readable = require('stream').Readable,
     fs = require('graceful-fs'),
     path = require('path'),
     util = require('util'),
