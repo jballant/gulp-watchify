@@ -44,7 +44,6 @@ function AbstractBundleStream(options) {
 
     this.verbose = (typeof options.verbose === 'boolean') ? options.verbose : true;
 
-    this._skipUpdateError = (typeof options.skipUpdateError === 'boolean') ? options.skipUpdateError : true;
 }
 
 util.inherits(AbstractBundleStream, Transform);
@@ -78,6 +77,8 @@ function ReBundle(bundlerInstance, options) {
     AbstractBundleStream.call(this, options);
     this._bundlerInstance = bundlerInstance;
 
+    this._skipUpdateError = (typeof options.skipUpdateError === 'boolean') ? options.skipUpdateError : true;
+
     this.on('end', function () {
         gutil.log(gcolors.green('======================='));
         gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('Successfully updated bundles with changed dependencies'));
@@ -102,7 +103,7 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
                 return;
             }
             // If skipUpdateError is true log error but proceed
-            gutil.log(gcolors.cyan(makeTimeString()), gcolors.red('Encountered Error, failed to create bundle for "'), gcolors.magenta(srcFile.path), '"');
+            gutil.log(gcolors.cyan(makeTimeString()), gcolors.red('Encountered Error, failed to create bundle for "') + gcolors.magenta(srcFile.path) + gcolors.red('"'));
             gutil.log(err);
             done();
             return;
@@ -112,18 +113,18 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
 
         self.push(file);
         if (self.verbose) {
-            gutil.log(gcolors.cyan(makeTimeString()), '-> Successfully Re-Bundled changed file', srcFile.path);
+            gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('-> Successfully Re-Bundled changed file'), gcolors.magenta(srcFile.path));
         }
         done();
     });
-    gutil.log(gcolors.cyan(makeTimeString()), '* Updating bundle for entry file :', srcFile.path);
+    gutil.log(gcolors.cyan(makeTimeString()), '* Updating bundle for entry file :', gcolors.magenta(srcFile.path));
 };
 
 /**
  * @constructor
  * @type {GulpWatchify}
  * @extends {AbstractBundleStream}
- * @param {object} options [description]
+ * @param {object} options
  */
 function GulpWatchify(options) {
     options = options || {};
@@ -152,6 +153,13 @@ function GulpWatchify(options) {
     options.shareWatchers = (typeof options.shareWatchers === 'boolean') ? options.shareWatchers : true;
 
     /**
+     * If shareWathers option is true, and you expect a lot of shared dependencies among
+     * files, you may want to alter this option. Defaults to 50.
+     * @type {number}
+     */
+    this._watcherMaxListeners = options.watcherMaxListeners;
+
+    /**
      * Options to pass to the bundler when it is created
      * @type {object}
      */
@@ -164,6 +172,24 @@ function GulpWatchify(options) {
      * @type {boolean}
      */
     this._rebundle = (typeof options.rebundle === 'boolean') ? options.rebundle : true;
+
+    /**
+     * If options.rebundle is true, when an update event occurs, a ReBundle stream is
+     * created. If the dependency is shared among several entry files, typically there
+     * is a very quick succession of update events. The rebundleDelay determines if 
+     * following update events are written to the existing rebundle stream, or if a 
+     * new one is created.
+     * @type {number}
+     */
+    this._rebundleDelay = options.rebundleDelay;
+
+    /**
+     * If options.rebundle is true, and an error occurs rebundling, by default the error
+     * is not fatal and only a message is logged. Setting this option to false will make
+     * that error fatal.
+     * @type {boolean}
+     */
+    this._skipUpdateError = (typeof options.skipUpdateError === 'boolean') ? options.skipUpdateError : true;
 
     /**
      * The bundler function to use to create common js bundles
@@ -224,7 +250,7 @@ util.inherits(GulpWatchify, AbstractBundleStream);
 
 
 /**
- * Pass through newer files only.
+ * Recieved entry file, pass through only a bundled entry file
  * @param {File} srcFile A vinyl file.
  * @param {string} encoding Encoding (ignored).
  * @param {function(Error, File)} done Callback.
@@ -249,7 +275,7 @@ GulpWatchify.prototype._transform = function (srcFile, encoding, done) {
     bundler.add(srcFile);
 
     bundler.on('watch', function (watcher) {
-        watcher.setMaxListeners(50);
+        watcher.setMaxListeners(this._watcherMaxListeners || 50);
     });
 
     bundler.on('update', function () {
@@ -265,6 +291,8 @@ GulpWatchify.prototype._transform = function (srcFile, encoding, done) {
 
     function firstBundleCallback(err, source) {
         if (err) {
+            // An error on the first bundle is fatal, because
+            // the watcher doesn't function properly otherwise.
             done(new PluginError('gulp-watchify', err));
             return;
         }
@@ -314,7 +342,10 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
 
     self._rebundleStream.write(srcFile);
 
-
+    // Normally many updates are recieved in a short
+    // period of time, so we write those to the rebundle
+    // stream until this timeout occurs. Once that happens
+    // The next update event will create a new stream
     self._rebundleTimeout = setTimeout(function () {
         rebundle.push(null);
         self._rebundleStream = null;
