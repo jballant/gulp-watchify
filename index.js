@@ -73,9 +73,12 @@ AbstractBundleStream.prototype._createBundleFile = function (srcFile, source) {
  */
 function ReBundle(bundlerInstance, options) {
     AbstractBundleStream.call(this, options);
+
     this._bundlerInstance = bundlerInstance;
 
     this._skipUpdateError = (typeof options.skipUpdateError === 'boolean') ? options.skipUpdateError : true;
+
+    this._unresolvedAsyncs = 0;
 
     this.on('end', function () {
         gutil.log(gcolors.green('======================='));
@@ -89,9 +92,10 @@ function ReBundle(bundlerInstance, options) {
 util.inherits(ReBundle, AbstractBundleStream);
 
 ReBundle.prototype._transform = function (srcFile, encoding, done) {
+
     var self = this;
 
-    this._bundlerInstance.bundle(function (err, source) {
+    self._bundlerInstance.bundle(function (err, source) {
         if (err) {
             // watch errors don't have to be fatal, but if 
             // the skipUpdateError option is false, they
@@ -104,6 +108,7 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
             gutil.log(gcolors.cyan(makeTimeString()), gcolors.red('Encountered Error, failed to create bundle for "') + gcolors.magenta(srcFile.path) + gcolors.red('"'));
             gutil.log(err);
             done();
+            self.finishIfResolved();
             return;
         }
 
@@ -114,8 +119,36 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
             gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('-> Successfully Re-Bundled changed file'), gcolors.magenta(srcFile.path));
         }
         done();
+        self.finishIfResolved();
     });
-    gutil.log(gcolors.cyan(makeTimeString()), '* Updating bundle for entry file :', gcolors.magenta(srcFile.path));
+
+    self.registerAsync();
+
+    if (self.verbose) {
+        gutil.log(gcolors.cyan(makeTimeString()), '* Updating bundle for entry file :', gcolors.magenta(srcFile.path));
+    }
+};
+
+/**
+ * Register async logic that needs to execute before
+ * this stream can close
+ * @return {[type]} [description]
+ */
+ReBundle.prototype.registerAsync = function () {
+    this._unresolvedAsyncs++;
+};
+
+/**
+ * Notify stream that async logic has completed and
+ * if there is no more async logic outstanding, then
+ * close the stream
+ * @return {[type]} [description]
+ */
+ReBundle.prototype.finishIfResolved = function () {
+    this._unresolvedAsyncs--;
+    if (!this._unresolvedAsyncs) {
+        this.push(null);
+    }
 };
 
 /**
@@ -331,21 +364,30 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
     clearTimeout(self._rebundleTimeout);
 
     if (!rebundle) {
+        // Create a new rebundle stream that we will send the
+        // watchify updates through
         rebundle = self._rebundleStream = new ReBundle(bundler, {
             verbose: self.verbose,
             skipUpdateError: self._skipUpdateError
         });
         self.emit('rebundle', rebundle);
-    }
 
-    self._rebundleStream.write(srcFile);
+        // Tell the rebundle stream that it has an outstanding async
+        // logic that needs to be resolved (the timeout)
+        rebundle.registerAsync();
+    }
+    rebundle.write(srcFile);
 
     // Normally many updates are recieved in a short
     // period of time, so we write those to the rebundle
     // stream until this timeout occurs. Once that happens
-    // The next update event will create a new stream
+    // The next update event will create a new stream.
     self._rebundleTimeout = setTimeout(function () {
-        rebundle.push(null);
+        // Tell the rebundle stream that the async logic has
+        // executed and to complete if all asyncs are done
+        rebundle.finishIfResolved();
+        // Set the rebundle stream to null, a new one will 
+        // be created if another update event occurs
         self._rebundleStream = null;
     }, self._rebundleDelay || 400);
 };
