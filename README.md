@@ -18,7 +18,10 @@ gulp.task('javascript-watch', function () {
         bundlerStream = gulpWatchify({
             watch: true,
             verbose: false,
-            bundlerOptions: {
+            bundlerInitOptions: {
+                basedir: '/path/to/mybasedir'
+            },
+            bundleOptions: {
                 debug: true // output source maps
             }
         });
