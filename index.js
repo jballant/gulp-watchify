@@ -80,6 +80,8 @@ function ReBundle(bundlerInstance, options) {
 
     this._unresolvedAsyncs = 0;
 
+    this.bundleOptions = options.bundleOptions || {};
+
     this.on('end', function () {
         gutil.log(gcolors.green('======================='));
         gutil.log(gcolors.cyan(makeTimeString()), gcolors.green('Successfully updated bundles with changed dependencies'));
@@ -95,9 +97,9 @@ ReBundle.prototype._transform = function (srcFile, encoding, done) {
 
     var self = this;
 
-    self._bundlerInstance.bundle(function (err, source) {
+    self._bundlerInstance.bundle(copy(self.bundleOptions), function (err, source) {
         if (err) {
-            // watch errors don't have to be fatal, but if 
+            // watch errors don't have to be fatal, but if
             // the skipUpdateError option is false, they
             // will be
             if (!self._skipUpdateError) {
@@ -192,9 +194,17 @@ function GulpWatchify(options) {
 
     /**
      * Options to pass to the bundler when it is created
+     * (i.e. watchify(bundlerInitOptions))
      * @type {object}
      */
-    this.bundlerOptions = options.bundlerOptions || {};
+    this.bundlerInitOptions = options.bundlerInitOptions || {};
+
+    /**
+     * Options to pass to the bundler when 'bundle' is called
+     * (i.e. watchify().add('foo.js').bundle(bundleOptions))
+     * @type {object}
+     */
+    this.bundleOptions = options.bundleOptions || {};
 
     /**
      * If you want this GulpWatchify instance to automatically create a ReBundle stream
@@ -293,7 +303,8 @@ GulpWatchify.prototype._transform = function (srcFile, encoding, done) {
     }
 
     var self = this,
-        opts = copy(this.bundlerOptions),
+        opts = copy(this.bundlerInitOptions),
+        bundlingOpts = copy(this.bundleOptions),
         bundler;
 
     opts.cache = this._depsCache;
@@ -337,7 +348,7 @@ GulpWatchify.prototype._transform = function (srcFile, encoding, done) {
         done();
     }
 
-    bundler.bundle(firstBundleCallback);
+    bundler.bundle(bundlingOpts, firstBundleCallback);
 
     if (this.verbose) {
         gutil.log(gcolors.cyan(makeTimeString()), '*Bundling file "', gcolors.magenta(srcFile.path), '"...');
@@ -368,7 +379,8 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
         // watchify updates through
         rebundle = self._rebundleStream = new ReBundle(bundler, {
             verbose: self.verbose,
-            skipUpdateError: self._skipUpdateError
+            skipUpdateError: self._skipUpdateError,
+            bundleOptions: self.bundleOptions
         });
         self.emit('rebundle', rebundle);
 
