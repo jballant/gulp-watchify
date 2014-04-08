@@ -71,10 +71,10 @@ AbstractBundleStream.prototype._createBundleFile = function (srcFile, source) {
  * @param bundler
  * @constructor
  */
-function ReBundle(bundlerInstance, options) {
+function ReBundle(options) {
     AbstractBundleStream.call(this, options);
 
-    this._bundlerInstance = bundlerInstance;
+    this._bundlerInstances = {};
 
     this._skipUpdateError = (typeof options.skipUpdateError === 'boolean') ? options.skipUpdateError : true;
 
@@ -93,11 +93,21 @@ function ReBundle(bundlerInstance, options) {
 // ReBundle inherits from AbstractBundleStream's prototype
 util.inherits(ReBundle, AbstractBundleStream);
 
+/**
+ * Each source file should have a corresponding bundler
+ * instance, this function is called to store them
+ * @param {[type]} srcFile [description]
+ * @param {[type]} bundler [description]
+ */
+ReBundle.prototype.addBundler = function (srcFile, bundler) {
+    this._bundlerInstances[srcFile.path] = bundler;
+};
+
 ReBundle.prototype._transform = function (srcFile, encoding, done) {
 
     var self = this;
 
-    self._bundlerInstance.bundle(copy(self.bundleOptions), function (err, source) {
+    self._bundlerInstances[srcFile.path].bundle(copy(self.bundleOptions), function (err, source) {
         if (err) {
             // watch errors don't have to be fatal, but if
             // the skipUpdateError option is false, they
@@ -217,8 +227,8 @@ function GulpWatchify(options) {
     /**
      * If options.rebundle is true, when an update event occurs, a ReBundle stream is
      * created. If the dependency is shared among several entry files, typically there
-     * is a very quick succession of update events. The rebundleDelay determines if 
-     * following update events are written to the existing rebundle stream, or if a 
+     * is a very quick succession of update events. The rebundleDelay determines if
+     * following update events are written to the existing rebundle stream, or if a
      * new one is created.
      * @type {number}
      */
@@ -268,9 +278,9 @@ function GulpWatchify(options) {
     }
 
     /**
-    * Path to destination directory or file.
-    * @type {string}
-    */
+     * Path to destination directory or file.
+     * @type {string}
+     */
     this._bundlers = options.bundlers || {};
 
     this.on('end', function () {
@@ -377,7 +387,7 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
     if (!rebundle) {
         // Create a new rebundle stream that we will send the
         // watchify updates through
-        rebundle = self._rebundleStream = new ReBundle(bundler, {
+        rebundle = self._rebundleStream = new ReBundle({
             verbose: self.verbose,
             skipUpdateError: self._skipUpdateError,
             bundleOptions: self.bundleOptions
@@ -388,6 +398,8 @@ GulpWatchify.prototype._handleUpdate = function (srcFile, bundler) {
         // logic that needs to be resolved (the timeout)
         rebundle.registerAsync();
     }
+
+    rebundle.addBundler(srcFile, bundler);
     rebundle.write(srcFile);
 
     // Normally many updates are recieved in a short
